@@ -12,9 +12,9 @@ Each client have to be implemented as a dedicated thread. Each client implements
 with random number of foods and random foods assigned to this order. Actually client is just a combination of table and
 waiter from dinning hall .
 In order to know which restaurants are connected to the Food ordering system, each client first of all have to request from
-Food ordering service, data about available restaurants which will include each restaurant menu. Having all restaurants menu,
+Food ordering service, data about available restaurants which will include each restaurant menu.
 
-Client generates random order and send generated order to food ordering service. Client can order from multiple
+Having all restaurants menu, Client generates random order and send generated order to food ordering service. Client can order from multiple
 restaurants, that means that client final order send to Food ordering service can include multiple restaurants orders.
 Client order is represented by at least 1 restaurant order, but usually client should order from multiple restaurants. For each
 restaurant order maximum wait time that a client is willing to wait before order pick up, should be calculated by taking the item
