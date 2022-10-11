@@ -53,7 +53,7 @@ func (c *Client) GenerateOrder() {
 		restaurantOrder := GenerateOneOrder(c.restaurantsMenu.RestaurantsData[restaurantId], restaurantId+1)
 		clientOrder.Orders[i] = restaurantOrder
 	}
-
+	log.Println(clientOrder.Orders)
 	c.generatedOrder = clientOrder
 	log.Printf("Client %d generated order %v", c.Id, c.generatedOrder)
 }

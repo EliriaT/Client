@@ -27,3 +27,28 @@ If order is not ready at the time client performs request to the restaurant dinn
 Client waits for the order the time specified in response from restaurant dinning hall .
 Each client should be created and destroyed for each new order request. This means, clients have to be destroyed after
 they pick up their orders. New clients are created instead of destroyed cients .
+
+## Running the App
+To run the App, run in terminal the following command:<br />
+
+
+`go run .`
+
+
+## Running in Docker container
+1. To run the app in a docker container, first build the image:<br />
+
+`docker build -t client .`
+
+2. Then run the container using the created image:<br />
+
+`docker run --name client --network restaurant -it --rm  client`
+
+For this you firstly need a created docker network. To create a docker network run:
+
+`docker network create restaurant`
+
+3. To stop the running container:
+
+`docker stop {docker's id}`
+
