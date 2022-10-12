@@ -10,5 +10,5 @@ const (
 
 var (
 	ClientList []Client
-	NrClients  = 6
+	NrClients  = 5
 )

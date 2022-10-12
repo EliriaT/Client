@@ -24,5 +24,8 @@ WORKDIR /app
 COPY --from=build /app/client .
 COPY --from=build /app/jsonConfig ./jsonConfig
 
+# copy a script for container sinchronization
+COPY wait-for.sh .
+
 # binary to run
 CMD "/app/client"

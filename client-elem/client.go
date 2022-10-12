@@ -109,7 +109,5 @@ func (c *Client) OrderOnline() {
 		c.GenerateOrder()
 		c.SendOrder()
 		c.WaitForOrders()
-
 	}
-
 }
