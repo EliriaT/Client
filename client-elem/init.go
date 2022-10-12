@@ -21,6 +21,6 @@ func InitClients() {
 		log.Fatal("Error unmarshaling clients.json", err)
 	}
 
-	log.Println(ClientList)
+	//log.Println(ClientList)
 
 }
