@@ -21,6 +21,14 @@ func InitClients() {
 		log.Fatal("Error unmarshaling clients.json", err)
 	}
 
-	//log.Println(ClientList)
+}
 
+func MakeNewClients() {
+
+	for i := range NotifClientManag {
+		ClientList[i-1] = Client{
+			Id: i,
+		}
+		go ClientList[i-1].OrderOnline()
+	}
 }

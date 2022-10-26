@@ -11,6 +11,8 @@ func main() {
 
 	client_elem.InitClients()
 
+	go client_elem.MakeNewClients()
+
 	for i := range client_elem.ClientList {
 		go client_elem.ClientList[i].OrderOnline()
 	}

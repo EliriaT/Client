@@ -9,6 +9,7 @@ const (
 )
 
 var (
-	ClientList []Client
-	NrClients  = 5
+	ClientList       []Client
+	NrClients        = 5
+	NotifClientManag = make(chan int)
 )
