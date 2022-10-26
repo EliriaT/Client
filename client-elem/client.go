@@ -3,6 +3,7 @@ package client_elem
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"math/rand"
@@ -18,27 +19,29 @@ type Client struct {
 	generatedOrder  ClientOrderGenerated
 	responseOrder   ClientOrderResponse
 	ratingChan      chan orderRating
+	errorChan       chan error
 	orderWG         *sync.WaitGroup
 	ratingResponse  raitingsResponses
 }
 
-func (c *Client) RequestMenu() {
+func (c *Client) RequestMenu() (err error) {
 	var restaurantsMenu RestaurantsList
 
 	resp, err := http.Get(OrderManagerUrl + "menu")
 	if err != nil {
-		log.Fatal("Menu Request Failed: %s", err.Error())
+		err = fmt.Errorf("Menu Request Failed: %s", err.Error())
 		return
 	}
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Fatal("Menu Request Failed: %s", err.Error())
+		err = fmt.Errorf("Menu Request Failed: %s", err.Error())
 		return
 	}
 	json.Unmarshal(body, &restaurantsMenu)
 	c.restaurantsMenu = restaurantsMenu
 	log.Printf("Menu requested succesfully by client %d \n", c.Id)
+	return nil
 }
 
 func (c *Client) GenerateOrder() {
@@ -70,11 +73,11 @@ func (c *Client) GenerateOrder() {
 	log.Printf("Client %d generated order %v", c.Id, c.generatedOrder)
 }
 
-func (c *Client) SendOrder() {
+func (c *Client) SendOrder() (err error) {
 	var clientOrderResponse ClientOrderResponse
 	reqBody, err := json.Marshal(c.generatedOrder)
 	if err != nil {
-		log.Printf(err.Error())
+		err = fmt.Errorf("Error Marshaling %s", err.Error())
 		return
 	}
 
@@ -82,14 +85,14 @@ func (c *Client) SendOrder() {
 
 	//if response failed then do not wait and do not pick up. I should return an err and check everytime for that error
 	if err != nil {
-		log.Printf("Request Failed: %s", err.Error())
+		err = fmt.Errorf(" Post Request Failed: %s", err.Error())
 		return
 	}
 
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Printf("Reading Response reading Failed: %s", err.Error())
+		err = fmt.Errorf("Reading Response reading Failed: %s", err.Error())
 		return
 	}
 	_ = json.Unmarshal(body, &clientOrderResponse)
@@ -105,20 +108,31 @@ func (c *Client) SendOrder() {
 
 	log.Printf("The order of the client %d was sent to Orderds Manager .", c.Id)
 	log.Printf("Got response: %+v", clientOrderResponse)
+	return
 }
 
 func (c *Client) WaitForOrders() {
 	c.ratingChan = make(chan orderRating, len(c.responseOrder.Orders))
+	c.errorChan = make(chan error, len(c.responseOrder.Orders))
 	c.orderWG = new(sync.WaitGroup)
 	c.orderWG.Add(len(c.responseOrder.Orders))
 
 	for _, order := range c.responseOrder.Orders {
+		if order == (OrderResponse{}) {
+			c.orderWG.Done()
+			log.Printf("----We are sorry we could not succesfully send one of your order ----- ")
+			continue
+		}
 		log.Printf(" ------- Client %d is waiting %d timeunits for order %d -------", c.Id, order.EstimatedWaitingTime, order.OrderId)
 		go c.PickUpOnlineOrder(order)
 	}
 	c.orderWG.Wait()
 
 	close(c.ratingChan)
+	close(c.errorChan)
+	for err := range c.errorChan {
+		log.Printf("We are sorry, you could not pick up one of your orders.. %s", err.Error())
+	}
 	for orderWithRating := range c.ratingChan {
 		c.ratingResponse.Orders = append(c.ratingResponse.Orders, orderWithRating)
 	}
@@ -127,25 +141,32 @@ func (c *Client) WaitForOrders() {
 
 }
 
-func (c *Client) PickUpOnlineOrder(order OrderResponse) {
+func (c *Client) PickUpOnlineOrder(order OrderResponse) (err error) {
 	var cookedOrderResponse CookedOrder
 
 	strId := strconv.Itoa(order.OrderId)
 	if strId == "" {
-		log.Fatal("Error, can not convert order id of to string")
+		err = fmt.Errorf("Error, can not convert order id of to string")
+		c.errorChan <- err
+		c.orderWG.Done()
+		return
 	}
 	//Wait for the estimated waiting time
 	time.Sleep(TimeUnit * time.Duration(order.EstimatedWaitingTime))
 
 	resp, err := http.Get(order.RestaurantAddress + "v2/order/" + strId)
 	if err != nil {
-		log.Fatal(" Request for the Online Cooked Order Failed: %s", err.Error())
+		err = fmt.Errorf(" Request for the Online Cooked Order Failed: %s", err.Error())
+		c.errorChan <- err
+		c.orderWG.Done()
 		return
 	}
 	body, err := io.ReadAll(resp.Body)
 
 	if err != nil {
-		log.Fatal("Reading the response of the online picked order failed : %s", err.Error())
+		err = fmt.Errorf("Reading the response of the online picked order failed : %s", err.Error())
+		c.errorChan <- err
+		c.orderWG.Done()
 		return
 	}
 	json.Unmarshal(body, &cookedOrderResponse)
@@ -166,31 +187,44 @@ func (c *Client) PickUpOnlineOrder(order OrderResponse) {
 
 		go c.PickUpOnlineOrder(order)
 	}
-
+	return
 }
 
-func (c *Client) SendRaitings() {
+func (c *Client) SendRaitings() (err error) {
 	reqBody, err := json.Marshal(c.ratingResponse)
 	if err != nil {
-		log.Printf(err.Error())
+		err = fmt.Errorf(err.Error())
 		return
 	}
 	_, err = http.Post(OrderManagerUrl+"rating", "application/json", bytes.NewBuffer(reqBody))
 
 	if err != nil {
-		log.Printf("Raiting Post Request Failed: %s", err.Error())
+		err = fmt.Errorf("Raiting Post Request Failed: %s", err.Error())
 		return
 	}
+	return
 }
 
 func (c *Client) OrderOnline() {
 
 	time.Sleep(TimeUnit * time.Duration(rand.Intn(500)+30))
-	c.RequestMenu()
+	err := c.RequestMenu()
+	if err != nil {
+		NotifClientManag <- c.Id
+		return
+	}
 	c.GenerateOrder()
-	c.SendOrder()
+	err = c.SendOrder()
+	if err != nil {
+		NotifClientManag <- c.Id
+		return
+	}
 	c.WaitForOrders()
-	c.SendRaitings()
+	err = c.SendRaitings()
+	if err != nil {
+		NotifClientManag <- c.Id
+		return
+	}
 	//Notifying that a Client finished his job and another client can be generated
 	NotifClientManag <- c.Id
 
